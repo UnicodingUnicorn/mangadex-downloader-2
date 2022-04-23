@@ -51,8 +51,7 @@ pub struct InnerMasterRateLimits {
 impl MRL for MasterRateLimits {
     fn from_master(master:Duration) -> Self {
         let rl = InnerMasterRateLimits {
-            // last_hit: Instant::now() - master,
-            last_hit: Instant::now(),
+            last_hit: Instant::now() - master,
             master,
             rate_limit: None,
         };
