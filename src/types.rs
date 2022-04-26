@@ -6,6 +6,8 @@ pub struct MangaDataAttributes {
     pub title: HashMap<String, String>,
     #[serde(rename="altTitles")]
     pub alt_titles: Vec<HashMap<String, String>>,
+    #[serde(rename="availableTranslatedLanguages")]
+    pub available_languages: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -35,10 +37,14 @@ pub struct ChapterData {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ChapterDataResponse {
     pub data: Vec<ChapterData>,
+    pub limit: u64,
+    pub offset: u64,
+    pub total: u64,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ChapterImageData {
+    pub hash: String,
     pub data: Vec<String>,
 }
 

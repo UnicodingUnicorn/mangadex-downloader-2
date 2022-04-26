@@ -6,6 +6,7 @@ use std::sync::{ Arc, RwLock };
 use std::time::{ Duration, Instant, SystemTime, SystemTimeError, UNIX_EPOCH };
 use std::thread;
 
+#[derive(Debug)]
 pub struct RateLimits {
     current: u64,
     rollover: Duration,
@@ -24,7 +25,8 @@ impl RateLimits {
 
     pub fn can_query(&self) -> Result<bool, SystemTimeError> {
         let current_time = SystemTime::now().duration_since(UNIX_EPOCH)?;
-        Ok(current_time > self.rollover || self.current > 0)
+        // println!("{:?} {:?} {}", current_time, self.rollover + Duration::from_secs(1), current_time > self.rollover + Duration::from_secs(1) || self.current > 0);
+        Ok(current_time > self.rollover + Duration::from_secs(10) || self.current > 0)
     }
 
     pub fn get_timeout(&self) -> Result<Duration, SystemTimeError> {
@@ -99,6 +101,7 @@ impl MRL for MasterRateLimits {
         mrl.last_hit = Instant::now();
         if let Some(rl) = RateLimits::from_headers(headers) {
             mrl.rate_limit = Some(rl);
+            println!("{:?}", mrl.rate_limit);
         }
     }
 

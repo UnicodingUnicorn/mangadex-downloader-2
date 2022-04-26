@@ -25,13 +25,13 @@ fn get_host(url:&str) -> Option<String> {
     Some(m)
 }
 
-pub struct Requester {
+pub struct RateLimitedRequester {
     base_url: String,
     host: String,
     client: Client,
     limits: MasterRateLimits,
 }
-impl Requester {
+impl RateLimitedRequester {
     pub fn new(base_url:&str, master:Duration) -> Result<Self, RequesterError> {
         Ok(Self {
             base_url: base_url.to_string(),
