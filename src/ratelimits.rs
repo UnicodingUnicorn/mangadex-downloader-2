@@ -1,138 +1,91 @@
-use reqwest::header::HeaderMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{ Context, Poll };
 use std::sync::{ Arc, RwLock };
-use std::time::{ Duration, Instant, SystemTime, SystemTimeError, UNIX_EPOCH };
+use std::time::{ Duration, Instant };
 use std::thread;
 
+// Simple timeout based rate limiter
 #[derive(Debug)]
-pub struct RateLimits {
-    current: u64,
-    rollover: Duration,
-}
-impl RateLimits {
-    pub fn from_headers(headers:&HeaderMap) -> Option<Self> {
-        let current = u64::from_str_radix(headers.get("X-RateLimit-Remaining")?.to_str().ok()?, 10).ok()?;
-        let raw_rollover = u64::from_str_radix(headers.get("X-RateLimit-Retry-After")?.to_str().ok()?, 10).ok()?;
-        let rollover = Duration::from_secs(raw_rollover);
-
-        Some(Self {
-            current,
-            rollover,
-        })
-    }
-
-    pub fn can_query(&self) -> Result<bool, SystemTimeError> {
-        let current_time = SystemTime::now().duration_since(UNIX_EPOCH)?;
-        // println!("{:?} {:?} {}", current_time, self.rollover + Duration::from_secs(1), current_time > self.rollover + Duration::from_secs(1) || self.current > 0);
-        Ok(current_time > self.rollover + Duration::from_secs(10) || self.current > 0)
-    }
-
-    pub fn get_timeout(&self) -> Result<Duration, SystemTimeError> {
-        let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
-        Ok(self.rollover.saturating_sub(now))
-    }
-}
-
-pub trait MRL {
-    fn from_master(master:Duration) -> Self;
-    fn from_headers(master:Duration, headers:&HeaderMap) -> Self;
-    fn can_query(&self) -> Result<bool, SystemTimeError>;
-    fn get_timeout(&self) -> Result<Duration, SystemTimeError>;
-    fn update(&mut self, headers:&HeaderMap);
-    fn update_no_overwrite(&mut self, headers:&HeaderMap);
-    fn get_permission(&self) -> RateLimitFuture;
-}
-pub type MasterRateLimits = Arc<RwLock<InnerMasterRateLimits>>;
-pub struct InnerMasterRateLimits {
+pub struct RateLimiter {
     last_hit: Instant,
-    master: Duration,
-    rate_limit: Option<RateLimits>,
+    timeout: Duration,
 }
-impl MRL for MasterRateLimits {
-    fn from_master(master:Duration) -> Self {
-        let rl = InnerMasterRateLimits {
-            last_hit: Instant::now() - master,
-            master,
-            rate_limit: None,
-        };
-
-        Arc::new(RwLock::new(rl))
-    }
-
-    fn from_headers(master:Duration, headers:&HeaderMap) -> Self {
-        let rl = InnerMasterRateLimits {
-            last_hit: Instant::now(),
-            master,
-            rate_limit: RateLimits::from_headers(headers),
-        };
-
-        Arc::new(RwLock::new(rl))
-    }
-
-    fn can_query(&self) -> Result<bool, SystemTimeError> {
-        let mrl = self.read().unwrap();
-        match &mrl.rate_limit {
-            Some(rl) => rl.can_query(),
-            None => Ok(Instant::now().duration_since(mrl.last_hit) > mrl.master),
+impl RateLimiter {
+    pub fn new(timeout:Duration) -> Self {
+        Self {
+            last_hit: Instant::now() - timeout,
+            timeout,
         }
     }
 
-    fn get_timeout(&self) -> Result<Duration, SystemTimeError> {
-        let mrl = self.read().unwrap();
-        match &mrl.rate_limit {
-            Some(rl) => rl.get_timeout(),
-            None => Ok(match (mrl.last_hit + mrl.master).checked_duration_since(Instant::now()) {
-                Some(d) => d,
-                None => Duration::ZERO,
-            }),
-        }
+    pub fn new_threaded(timeout:Duration) -> ThreadedRateLimiter {
+        Arc::new(RwLock::new(Self::new(timeout)))
     }
 
-    fn update(&mut self, headers:&HeaderMap) {
-        let mut mrl = self.write().unwrap();
-        mrl.last_hit = Instant::now();
-        mrl.rate_limit = RateLimits::from_headers(headers);
+    pub fn can_query(&self) -> bool {
+        Instant::now() - self.last_hit > self.timeout
     }
 
-    fn update_no_overwrite(&mut self, headers:&HeaderMap) {
-        let mut mrl = self.write().unwrap();
-        mrl.last_hit = Instant::now();
-        if let Some(rl) = RateLimits::from_headers(headers) {
-            mrl.rate_limit = Some(rl);
-            println!("{:?}", mrl.rate_limit);
-        }
+    pub fn get_timeout(&self) -> Duration {
+        self.last_hit.checked_add(self.timeout)
+            .unwrap_or(Instant::now())
+            .saturating_duration_since(Instant::now())
     }
 
-    fn get_permission(&self) -> RateLimitFuture {
-        RateLimitFuture {
+    pub fn update(&mut self) {
+        self.last_hit = Instant::now();
+    }
+}
+
+pub trait RateLimiterFunctions {
+    fn can_query(&self) -> bool;
+    fn get_timeout(&self) -> Duration;
+    fn update(&mut self);
+    fn get_permission(&self) -> RateLimiterFuture;
+}
+
+pub type ThreadedRateLimiter = Arc<RwLock<RateLimiter>>;
+impl RateLimiterFunctions for ThreadedRateLimiter {
+    fn can_query(&self) -> bool {
+        let rl = self.read().unwrap();
+        rl.can_query()
+    }
+
+    fn get_timeout(&self) -> Duration {
+        let rl = self.read().unwrap();
+        rl.get_timeout()
+    }
+
+    fn update(&mut self) {
+        let mut rl = self.write().unwrap();
+        rl.update();
+    }
+
+    fn get_permission(&self) -> RateLimiterFuture {
+        RateLimiterFuture {
             rl: self.clone(),
         }
     }
 }
 
-pub struct RateLimitFuture {
-    rl: MasterRateLimits,
+pub struct RateLimiterFuture {
+    rl: ThreadedRateLimiter,
 }
-impl Future for RateLimitFuture {
-    type Output = Result<(), SystemTimeError>;
+impl Future for RateLimiterFuture {
+    type Output = ();
     fn poll(self:Pin<&mut Self>, ctx:&mut Context) -> Poll<Self::Output> {
-        match self.rl.can_query() {
-            Ok(true) => Poll::Ready(Ok(())),
-            Ok(false) => match self.rl.get_timeout() {
-                Ok(timeout) => {
-                    let waker = ctx.waker().clone();
-                    thread::spawn(move || {
-                        thread::sleep(timeout);
-                        waker.wake();
-                    });
+        if self.rl.can_query() {
+            Poll::Ready(())
+        } else {
+            let timeout = self.rl.get_timeout();
+            let waker = ctx.waker().clone();
+            thread::spawn(move || {
+                thread::sleep(timeout);
+                waker.wake();
+            });
 
-                    Poll::Pending
-                },
-                Err(e) => Poll::Ready(Err(e)),
-            }
-            Err(e) => Poll::Ready(Err(e)),
+            Poll::Pending
         }
     }
 }

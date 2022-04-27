@@ -24,10 +24,6 @@ impl Chapter {
         let res = requester.request(&format!("/at-home/server/{}", raw.id))
             .await?;
 
-        println!("{}", res.status());
-        // if res.status().is_client_error() {
-            println!("{:#?}", res.headers());
-        // }
         let res = res.json::<ChapterImageResponse>()
             .await?;
 
@@ -64,7 +60,6 @@ impl Chapter {
         let mut i = 0;
         let mut c = true;
         while c {
-            println!("{}", i);
             let (mut data, n, cont) = Self::get_page(requester, id, i).await?;
             chapters.append(&mut data);
 
@@ -122,10 +117,7 @@ impl Manga {
             },
         };
 
-        let (chapter, _, _) = Chapter::get_page(requester, &id, 0).await?;
-        println!("{:?}", chapter);
-        let chapters = vec![];
-        // let chapters = Chapter::get_all(requester, &id).await?;
+        let chapters = Chapter::get_all(requester, &id).await?;
 
         Ok(Self{
             title,

@@ -1,4 +1,4 @@
-use crate::ratelimits::{ MasterRateLimits, MRL };
+use crate::ratelimits::{ RateLimiter, RateLimiterFunctions, ThreadedRateLimiter };
 
 use thiserror::Error;
 use regex::Regex;
@@ -29,22 +29,22 @@ pub struct RateLimitedRequester {
     base_url: String,
     host: String,
     client: Client,
-    limits: MasterRateLimits,
+    limits: ThreadedRateLimiter,
 }
 impl RateLimitedRequester {
-    pub fn new(base_url:&str, master:Duration) -> Result<Self, RequesterError> {
+    pub fn new(base_url:&str, timeout:Duration) -> Result<Self, RequesterError> {
         Ok(Self {
             base_url: base_url.to_string(),
             host: get_host(base_url).ok_or(RequesterError::NoHost)?,
             client: Client::new(),
-            limits: MasterRateLimits::from_master(master),
+            limits: RateLimiter::new_threaded(timeout),
         })
     }
 
     pub async fn request(&mut self, path:&str) -> Result<Response, RequesterError> {
         let _ = self.limits.get_permission().await;
         let res = self.client.get(format!("{}{}", &self.base_url, path)).header("Host", &self.host).send().await?;
-        self.limits.update_no_overwrite(res.headers());
+        self.limits.update();
 
         Ok(res)
     }
