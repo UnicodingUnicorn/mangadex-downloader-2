@@ -21,7 +21,7 @@ pub struct Chapter {
 }
 impl Chapter {
     pub async fn new(requester:&mut RateLimitedRequester, raw:&ChapterData) -> Result<Self, ChapterError> {
-        let res = requester.request(&format!("/at-home/server/{}", raw.id))
+        let res = requester.request("cdn", &format!("/at-home/server/{}", raw.id))
             .await?;
 
         let res = res.json::<ChapterImageResponse>()
@@ -40,7 +40,7 @@ impl Chapter {
     }
 
     pub async fn get_page(requester:&mut RateLimitedRequester, id:&str, n:u64) -> Result<(Vec<Self>, u64, bool), ChapterError> {
-        let res = requester.request(&format!("/manga/{}/feed?offset={}", id, n))
+        let res = requester.request("cdn", &format!("/manga/{}/feed?offset={}", id, n))
             .await?
             .json::<ChapterDataResponse>()
             .await?;
@@ -102,9 +102,10 @@ pub struct Manga {
     pub chapters: Vec<Chapter>,
 }
 impl Manga {
-    pub async fn new(requester:&mut RateLimitedRequester, url:&str, preferred_language:&str) -> Result<Self, MangaError> {
+    pub async fn new(url:&str, preferred_language:&str) -> Result<Self, MangaError> {
         let id = get_id(url).ok_or(MangaError::NoID)?;
-        let raw_manga_data = requester.request(&format!("/manga/{}", id))
+        let mut requester = RateLimitedRequester::new_with_defaults()?;
+        let raw_manga_data = requester.request("main", &format!("/manga/{}", id))
             .await?
             .json::<MangaDataResponse>()
             .await?;
@@ -117,7 +118,7 @@ impl Manga {
             },
         };
 
-        let chapters = Chapter::get_all(requester, &id).await?;
+        let chapters = Chapter::get_all(&mut requester, &id).await?;
 
         Ok(Self{
             title,

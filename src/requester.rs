@@ -4,16 +4,17 @@ use thiserror::Error;
 use regex::Regex;
 use reqwest::{ self, Client, Response };
 
-use std::time::{ Duration, SystemTimeError };
+use std::collections::HashMap;
+use std::time::Duration;
 
 #[derive(Debug, Error)]
 pub enum RequesterError {
     #[error("No host found in base url")]
     NoHost,
+    #[error("Attempted to insert conflicting aliases")]
+    ConflictingAlias,
     #[error("reqwest error {0}")]
     Reqwest(#[from] reqwest::Error),
-    #[error("cannot access the system clock: {0}")]
-    Time(#[from] SystemTimeError)
 }
 
 fn get_host(url:&str) -> Option<String> {
@@ -25,26 +26,69 @@ fn get_host(url:&str) -> Option<String> {
     Some(m)
 }
 
-pub struct RateLimitedRequester {
-    base_url: String,
-    host: String,
-    client: Client,
-    limits: ThreadedRateLimiter,
+pub struct RequesterSource {
+    pub base_url: String,
+    pub host: String,
+    pub limiter: ThreadedRateLimiter,
 }
-impl RateLimitedRequester {
+impl RequesterSource {
     pub fn new(base_url:&str, timeout:Duration) -> Result<Self, RequesterError> {
         Ok(Self {
             base_url: base_url.to_string(),
             host: get_host(base_url).ok_or(RequesterError::NoHost)?,
-            client: Client::new(),
-            limits: RateLimiter::new_threaded(timeout),
+            limiter: RateLimiter::new_threaded(timeout),
         })
     }
+}
 
-    pub async fn request(&mut self, path:&str) -> Result<Response, RequesterError> {
-        let _ = self.limits.get_permission().await;
-        let res = self.client.get(format!("{}{}", &self.base_url, path)).header("Host", &self.host).send().await?;
-        self.limits.update();
+pub struct RateLimitedRequester {
+    client: Client,
+    sources: HashMap<String, RequesterSource>,
+}
+impl RateLimitedRequester {
+    pub fn new() -> Self {
+        Self {
+            client: Client::new(),
+            sources: HashMap::new(),
+        }
+    }
+
+    pub fn new_with_defaults() -> Result<Self, RequesterError> {
+        let mut requester = Self::new();
+        let _ = requester.insert_source("main", "https://api.mangadex.org", Duration::from_millis(200))?;
+        let _ = requester.insert_source("cdn", "https://api.mangadex.org", Duration::from_millis(1500))?;
+
+        Ok(requester)
+    }
+
+    pub fn insert_source(&mut self, alias:&str, base_url:&str, timeout:Duration) -> Result<(), RequesterError> {
+        if self.sources.contains_key(alias) {
+            return Err(RequesterError::ConflictingAlias);
+        }
+
+        let source = RequesterSource::new(base_url, timeout)?;
+        let _ = self.sources.insert(alias.to_string(), source);
+        Ok(())
+    }
+
+    pub async fn request(&mut self, alias:&str, path:&str) -> Result<Response, RequesterError> {
+        let mut source = self.sources.get_mut(alias);
+        if let Some(ref mut s) = source {
+            let _ = s.limiter.get_permission().await;
+            s.limiter.update();
+        }
+
+        let base_url = match source {
+            Some(ref s) => &s.base_url,
+            None => "",
+        };
+
+        let mut req = self.client.get(format!("{}{}", base_url, path));
+        if let Some(s) = source {
+            req = req.header("Host", &s.host);
+        }
+
+        let res = req.send().await?;
 
         Ok(res)
     }
