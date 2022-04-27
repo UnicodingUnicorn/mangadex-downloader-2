@@ -39,13 +39,13 @@ impl Chapter {
         })
     }
 
-    pub async fn get_page(requester:&mut RateLimitedRequester, id:&str, n:u64) -> Result<(Vec<Self>, u64, bool), ChapterError> {
-        let res = requester.request("cdn", &format!("/manga/{}/feed?offset={}", id, n))
+    pub async fn get_page(requester:&mut RateLimitedRequester, id:&str, n:u64, language:&str) -> Result<(Vec<Self>, u64, bool), ChapterError> {
+        let res = requester.request("main", &format!("/manga/{}/feed?offset={}", id, n))
             .await?
             .json::<ChapterDataResponse>()
             .await?;
 
-        let mut iter = res.data.iter();
+        let mut iter = res.data.iter().filter(|datum| datum.attributes.language == language);
         let mut data = vec![];
         while let Some(datum) = iter.next() {
             let c = Self::new(requester, &datum).await?;
@@ -55,12 +55,12 @@ impl Chapter {
         Ok((data, res.limit, res.limit + res.offset < res.total))
     }
 
-    pub async fn get_all(requester:&mut RateLimitedRequester, id:&str) -> Result<Vec<Self>, ChapterError> {
+    pub async fn get_all(requester:&mut RateLimitedRequester, id:&str, language:&str) -> Result<Vec<Self>, ChapterError> {
         let mut chapters = vec![];
         let mut i = 0;
         let mut c = true;
         while c {
-            let (mut data, n, cont) = Self::get_page(requester, id, i).await?;
+            let (mut data, n, cont) = Self::get_page(requester, id, i, language).await?;
             chapters.append(&mut data);
 
             i += n;
@@ -118,7 +118,7 @@ impl Manga {
             },
         };
 
-        let chapters = Chapter::get_all(&mut requester, &id).await?;
+        let chapters = Chapter::get_all(&mut requester, &id, preferred_language).await?;
 
         Ok(Self{
             title,
