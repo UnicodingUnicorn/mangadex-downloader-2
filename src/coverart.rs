@@ -1,6 +1,7 @@
 use crate::chapter::ImageDownloadError;
 use crate::requester::RateLimitedRequester;
 use crate::types::CoverArtData;
+use crate::utils;
 
 use std::path::Path;
 use std::fs::{ self, File };
@@ -34,7 +35,7 @@ impl CoverArt {
     }
 
     pub async fn download(&self, requester:&mut RateLimitedRequester, master_directory:&Path) -> Result<(), ImageDownloadError> {
-        let master_path = master_directory.join(Path::new(&self.get_volume()));
+        let master_path = master_directory.join(Path::new(&utils::escape_path(&self.get_volume())));
         fs::create_dir_all(&master_path)?;
 
         let res = requester.request("content", &format!("/covers/{}", &self.url)).await?;

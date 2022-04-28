@@ -3,21 +3,12 @@ use crate::coverart::CoverArt;
 use crate::manga::MangaMetadata;
 use crate::requester::{ RateLimitedRequester, RequesterError };
 use crate::types::{ ChapterDataResponse, CoverArtResponse, MangaDataResponse };
+use crate::utils;
 
 use std::path::Path;
 
 use pbr::ProgressBar;
-use regex::Regex;
 use thiserror::Error;
-
-fn get_id(url:&str) -> Option<String> {
-    lazy_static! {
-        static ref ID_RE:Regex = Regex::new(r"https?://mangadex\.org/title/((?:[0-9a-fA-F]+-?)+)/?.*").unwrap();
-    }
-
-    let id = ID_RE.captures(url)?.get(1)?.as_str().to_string();
-    Some(id)
-}
 
 #[derive(Debug, Error)]
 pub enum APIError {
@@ -44,7 +35,7 @@ impl API {
     }
 
     pub async fn get_manga_metadata(&mut self, url:&str) -> Result<MangaMetadata, APIError> {
-        let id = get_id(url).ok_or(APIError::NoID)?;
+        let id = utils::get_id(url).ok_or(APIError::NoID)?;
         let raw_manga_data = self.requester.request("main", &format!("/manga/{}", id))
             .await?
             .json::<MangaDataResponse>()

@@ -1,5 +1,6 @@
 use crate::requester::{ RateLimitedRequester, RequesterError };
 use crate::types::{ ChapterData, ChapterImageResponse };
+use crate::utils;
 
 use std::path::Path;
 use std::fs::{ self, File };
@@ -99,7 +100,7 @@ impl Chapter {
 
     pub async fn download_to_folder(&self, requester:&mut RateLimitedRequester, master_directory:&Path, quiet:bool) -> Result<(), ImageDownloadError> {
         let _ = requester.insert_source(&self.base_url, &self.base_url, Duration::from_millis(100)); // Ignore conflicting aliases
-        let master_path = master_directory.join(Path::new(&format!("{}/{}", self.get_volume(), self.get_chapter())));
+        let master_path = master_directory.join(Path::new(&format!("{}/{}", utils::escape_path(&self.get_volume()), utils::escape_path(&self.get_chapter()))));
         fs::create_dir_all(&master_path)?;
 
         let mut pb = match quiet {
@@ -133,7 +134,6 @@ impl Chapter {
 
         if let Some(pb) = &mut pb {
             pb.finish();
-            println!("");
         }
 
         Ok(())

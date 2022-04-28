@@ -10,6 +10,7 @@ mod range;
 mod ratelimits;
 mod requester;
 mod types;
+mod utils;
 
 use api::{ API, APIError };
 use chapter::ChapterMetadata;
@@ -116,7 +117,7 @@ async fn run(args:Arguments) -> Result<(), ProgramError> {
     let chapters = api.get_chapters(&download_chapter_metadata, args.quiet).await?;
 
     info!("Downloading chapters...");
-    let master_directory = Path::new(&args.output_dir).join(Path::new(&title));
+    let master_directory = Path::new(&args.output_dir).join(Path::new(&utils::escape_path(&title)));
     api.download_chapters(&chapters, &master_directory, args.quiet).await?;
 
     info!("Downloading cover art...");
