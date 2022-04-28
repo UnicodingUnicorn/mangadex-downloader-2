@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate lazy_static;
 
+mod chapter;
 mod manga;
 mod ratelimits;
 mod requester;
