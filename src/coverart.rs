@@ -12,15 +12,18 @@ pub struct CoverArt {
     pub url: String,
 }
 impl CoverArt {
-    pub fn from_data(id:&str, data:CoverArtData) -> Self {
-        Self {
-            volume: data.attributes.volume,
+    pub fn from_data(id:&str, data:CoverArtData) -> Option<Self> {
+        Some(Self {
+            volume: data.attributes.volume?,
             url: format!("{}/{}", id, data.attributes.file_name),
-        }
+        })
     }
 
     pub fn from_response(id:&str, mut raw:Vec<CoverArtData>) -> Vec<Self> {
-        raw.drain(..).map(|r| Self::from_data(id, r)).collect::<Vec<Self>>()
+        raw.drain(..).map(|r| Self::from_data(id, r))
+            .filter(|ca| ca.is_some())
+            .map(|ca| ca.unwrap())
+            .collect::<Vec<Self>>()
     }
 
     pub fn get_volume(&self) -> String {

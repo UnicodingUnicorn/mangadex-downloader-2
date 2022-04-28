@@ -57,14 +57,13 @@ pub struct ChapterImageResponse {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CoverArtAttributes {
-    pub volume: String,
+    pub volume: Option<String>,
     #[serde(rename="fileName")]
     pub file_name: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CoverArtData {
-    // pub id: String,
     pub attributes: CoverArtAttributes,
 }
 
