@@ -1,12 +1,14 @@
 [package]
 name = "mangadex-downloader"
+authors = [ "UnicodingUnicorn" ]
+description = "A CLI tool to download manga from https://mangadex.org"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = { version = "3.1.2", features = [ "derive", "wrap_help" ] }
+clap = { version = "3.1.2", features = [ "derive" ] }
 lazy_static = "1.4.0"
 log = "0.4.16"
 mime_guess = "2.0.4"

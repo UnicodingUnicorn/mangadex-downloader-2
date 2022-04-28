@@ -24,16 +24,22 @@ use thiserror::Error;
 #[derive(Debug, Parser)]
 #[clap(author, version, about)]
 pub struct Arguments {
+    /// The URL to the manga, e.g. https://mangadex.org/title/348966d0-c807-45cf-9260-8adf006a9da6/kono-bijutsubu-ni-wa-mondai-ga-aru
     url: Option<String>,
     #[clap(short, long, default_value = "en")]
+    /// Preferred download language, in ISO-639 form, e.g. en
     language: String,
     #[clap(long)]
+    /// Display metadata only; do not download
     metadata: bool,
     #[clap(short, long, default_value = "output")]
+    /// Output directory. Manga will be created as a subfolder to this.
     output_dir: String,
     #[clap(short, long)]
+    /// Chapter range to download, leave blank to download the whole manga.
     range: Option<String>,
     #[clap(short, long)]
+    /// Suppress all terminal output
     quiet: bool,
 }
 
