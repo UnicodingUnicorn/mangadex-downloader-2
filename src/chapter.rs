@@ -97,12 +97,16 @@ impl Chapter {
         }
     }
 
-    pub async fn download_to_folder(&self, requester:&mut RateLimitedRequester, master_directory:&Path) -> Result<(), ChapterDownloadError> {
+    pub async fn download_to_folder(&self, requester:&mut RateLimitedRequester, master_directory:&Path, quiet:bool) -> Result<(), ChapterDownloadError> {
         let _ = requester.insert_source(&self.base_url, &self.base_url, Duration::from_millis(100)); // Ignore conflicting aliases
         let master_path = master_directory.join(Path::new(&format!("{}/{}", self.get_volume(), self.get_chapter())));
         fs::create_dir_all(&master_path)?;
 
-        let mut pb = ProgressBar::new(self.urls.len() as u64);
+        let mut pb = match quiet {
+            false => Some(ProgressBar::new(self.urls.len() as u64)),
+            true => None,
+        };
+
         for (i, url) in self.urls.iter().enumerate() {
             let res = requester.request(&self.base_url, &url).await?;
             let content_type = res.headers().get("Content-Type")
@@ -122,10 +126,16 @@ impl Chapter {
             let mut file = File::create(path)?;
             let _ = file.write_all(&body)?;
 
-            pb.inc();
+            if let Some(pb) = &mut pb {
+                pb.inc();
+            }
         }
 
-        pb.finish();
+        if let Some(pb) = &mut pb {
+            pb.finish();
+            println!("");
+        }
+
         Ok(())
     }
 }

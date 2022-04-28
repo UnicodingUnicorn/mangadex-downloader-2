@@ -95,7 +95,7 @@ async fn run(args:Arguments) -> Result<(), ProgramError> {
     let title = manga_metadata.get_title(&args.language).ok_or(ProgramError::TitleNotAvailable)?;
 
     info!("Retrieving chapter metadata...");
-    let chapter_metadata = api.get_chapter_metadata(&manga_metadata).await?;
+    let chapter_metadata = api.get_chapter_metadata(&manga_metadata, args.quiet).await?;
     let download_chapter_metadata = chapter_metadata.iter()
         .filter(|m| m.language == args.language)
         .filter(|m| ranges.as_ref().map(|r| r.iter().any(|range| range.in_range(&m.volume, &m.chapter))).unwrap_or(true))
@@ -103,11 +103,11 @@ async fn run(args:Arguments) -> Result<(), ProgramError> {
         .collect::<Vec<ChapterMetadata>>();
 
     info!("Retrieving chapter images download data...");
-    let chapters = api.get_chapters(&download_chapter_metadata).await?;
+    let chapters = api.get_chapters(&download_chapter_metadata, args.quiet).await?;
 
     info!("Downloading chapters...");
     let master_directory = Path::new(&args.output_dir).join(Path::new(&title));
-    api.download_chapters(&chapters, &master_directory).await?;
+    api.download_chapters(&chapters, &master_directory, args.quiet).await?;
 
     Ok(())
 }
