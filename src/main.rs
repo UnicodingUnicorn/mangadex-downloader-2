@@ -35,16 +35,16 @@ pub struct Arguments {
     #[clap(short, long)]
     range: Option<String>,
     #[clap(short, long)]
-    verbose: bool,
+    quiet: bool,
 }
 
 #[tokio::main]
 async fn main() {
     let args = Arguments::parse();
 
-    let log_level = match args.verbose {
-        true => LevelFilter::Info,
-        false => LevelFilter::Warn,
+    let log_level = match args.quiet {
+        true => LevelFilter::Warn,
+        false => LevelFilter::Info,
     };
 
     TermLogger::init(log_level, simplelog::Config::default(), TerminalMode::Mixed, ColorChoice::Auto).unwrap();
@@ -105,6 +105,7 @@ async fn run(args:Arguments) -> Result<(), ProgramError> {
     info!("Retrieving chapter images download data...");
     let chapters = api.get_chapters(&download_chapter_metadata).await?;
 
+    info!("Downloading chapters...");
     let master_directory = Path::new(&args.output_dir).join(Path::new(&title));
     api.download_chapters(&chapters, &master_directory).await?;
 

@@ -6,6 +6,7 @@ use std::fs::{ self, File };
 use std::io::Write;
 use std::time::Duration;
 
+use pbr::ProgressBar;
 use thiserror::Error;
 
 #[derive(Debug, Clone)]
@@ -101,6 +102,7 @@ impl Chapter {
         let master_path = master_directory.join(Path::new(&format!("{}/{}", self.get_volume(), self.get_chapter())));
         fs::create_dir_all(&master_path)?;
 
+        let mut pb = ProgressBar::new(self.urls.len() as u64);
         for (i, url) in self.urls.iter().enumerate() {
             let res = requester.request(&self.base_url, &url).await?;
             let content_type = res.headers().get("Content-Type")
@@ -119,8 +121,11 @@ impl Chapter {
             let path = master_path.join(Path::new(&format!("{}.{}", i + 1, extension)));
             let mut file = File::create(path)?;
             let _ = file.write_all(&body)?;
+
+            pb.inc();
         }
 
+        pb.finish();
         Ok(())
     }
 }

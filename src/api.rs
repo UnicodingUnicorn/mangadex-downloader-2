@@ -6,6 +6,7 @@ use crate::utils;
 
 use std::path::Path;
 
+use pbr::ProgressBar;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -43,33 +44,47 @@ impl API {
     }
 
     pub async fn get_chapter_metadata(&mut self, manga_metadata:&MangaMetadata) -> Result<Vec<ChapterMetadata>, APIError> {
-        let mut chapters = vec![];
-        let mut i = 0;
-        loop {
+        let res = self.requester.request("main", &format!("/manga/{}/feed?offset={}", &manga_metadata.id, 0))
+            .await?
+            .json::<ChapterDataResponse>()
+            .await?;
+
+        let mut chapters = ChapterMetadata::from_response(res.data);
+        let total = res.total;
+        let mut i = res.offset + res.limit;
+
+        let mut pb = ProgressBar::new(total);
+        while i < total {
             let res = self.requester.request("main", &format!("/manga/{}/feed?offset={}", &manga_metadata.id, i))
                 .await?
                 .json::<ChapterDataResponse>()
                 .await?;
 
             let mut new_chapters = ChapterMetadata::from_response(res.data);
+            pb.add(new_chapters.len() as u64);
             chapters.append(&mut new_chapters);
 
             i += res.limit;
-            if i > res.total {
-                break;
-            }
         }
+
+        pb.finish_print("Chapter metadata downloaded.");
+        println!("");
 
         Ok(chapters)
     }
 
     pub async fn get_chapters(&mut self, chapter_metadata:&[ChapterMetadata]) -> Result<Vec<Chapter>, APIError> {
+        let mut pb = ProgressBar::new(chapter_metadata.len() as u64);
         let mut chapters = vec![];
         let mut iter = chapter_metadata.iter();
         while let Some(metadata) = iter.next() {
             let chapter = Chapter::new(&mut self.requester, &metadata).await?;
             chapters.push(chapter);
+            pb.inc();
         }
+
+        pb.finish_print("Chapter download data downloaded.");
+        println!("");
 
         Ok(chapters)
     }
