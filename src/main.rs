@@ -9,7 +9,6 @@ mod range;
 mod ratelimits;
 mod requester;
 mod types;
-mod utils;
 
 use api::{ API, APIError };
 use chapter::ChapterMetadata;
