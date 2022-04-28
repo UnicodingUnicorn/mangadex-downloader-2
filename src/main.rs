@@ -4,6 +4,7 @@ extern crate lazy_static;
 
 mod api;
 mod chapter;
+mod coverart;
 mod manga;
 mod range;
 mod ratelimits;
@@ -12,6 +13,7 @@ mod types;
 
 use api::{ API, APIError };
 use chapter::ChapterMetadata;
+use coverart::CoverArt;
 use range::{ Range, RangeError };
 
 use std::path::Path;
@@ -101,18 +103,28 @@ async fn run(args:Arguments) -> Result<(), ProgramError> {
 
     info!("Retrieving chapter metadata...");
     let chapter_metadata = api.get_chapter_metadata(&manga_metadata, args.quiet).await?;
+
+    info!("Retrieving cover art metadata...");
+    let cover_art_metadata = api.get_cover_art(&manga_metadata.id, args.quiet).await?;
+
+    info!("Retrieving chapter images download data...");
     let download_chapter_metadata = chapter_metadata.iter()
         .filter(|m| m.language == args.language)
         .filter(|m| ranges.as_ref().map(|r| r.iter().any(|range| range.in_range(&m.volume, &m.chapter))).unwrap_or(true))
         .map(|m| m.clone())
         .collect::<Vec<ChapterMetadata>>();
-
-    info!("Retrieving chapter images download data...");
     let chapters = api.get_chapters(&download_chapter_metadata, args.quiet).await?;
 
     info!("Downloading chapters...");
     let master_directory = Path::new(&args.output_dir).join(Path::new(&title));
     api.download_chapters(&chapters, &master_directory, args.quiet).await?;
+
+    info!("Downloading cover art...");
+    let download_cover_arts = cover_art_metadata.iter()
+        .filter(|cam| ranges.as_ref().map(|r| r.iter().any(|range| range.in_volume_range(&cam.volume))).unwrap_or(true))
+        .map(|cam| cam.clone())
+        .collect::<Vec<CoverArt>>();
+    api.download_cover_art(&download_cover_arts, &master_directory, args.quiet).await?;
 
     Ok(())
 }

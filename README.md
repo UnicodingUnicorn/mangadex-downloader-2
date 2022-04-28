@@ -1,6 +1,6 @@
 # mangadex-downloader-2
 
-Some time ago, [MangaDex](https://mangadex.org) changed their API and their website, so my [old tool](https://github.com/UnicodingUnicorn/mangadex-downloader) probably doesn't work anymore. In any case, this one is better, faster, stronger.
+Some time ago, [MangaDex](https://mangadex.org) changed their API and their website, so my [old tool](https://github.com/UnicodingUnicorn/mangadex-downloader) probably doesn't work anymore. In any case, this one is better, faster, stronger. Downloads cover images too.
 
 As it stands, I baked the recommended rate limits into the application itself, so all should be good when querying the site.
 

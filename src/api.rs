@@ -1,7 +1,8 @@
-use crate::chapter::{ Chapter, ChapterError, ChapterDownloadError, ChapterMetadata };
+use crate::chapter::{ Chapter, ChapterError, ImageDownloadError, ChapterMetadata };
+use crate::coverart::CoverArt;
 use crate::manga::MangaMetadata;
 use crate::requester::{ RateLimitedRequester, RequesterError };
-use crate::types::{ ChapterDataResponse, MangaDataResponse };
+use crate::types::{ ChapterDataResponse, CoverArtResponse, MangaDataResponse };
 
 use std::path::Path;
 
@@ -28,8 +29,8 @@ pub enum APIError {
     NoID,
     #[error("error retrieving chapter information: {0}")]
     Chapter(#[from] ChapterError),
-    #[error("error downloading chapter images: {0}")]
-    ChapterDownload(#[from] ChapterDownloadError),
+    #[error("error downloading images: {0}")]
+    Download(#[from] ImageDownloadError),
 }
 
 pub struct API {
@@ -119,6 +120,68 @@ impl API {
         let mut iter = chapters.iter();
         while let Some(chapter) = iter.next() {
             chapter.download_to_folder(&mut self.requester, master_directory, quiet).await?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn get_cover_art(&mut self, id:&str, quiet:bool) -> Result<Vec<CoverArt>, APIError> {
+        let res = self.requester.request("main", &format!("/cover?manga[]={}&offset={}", id, 0))
+            .await?
+            .json::<CoverArtResponse>()
+            .await?;
+
+        let mut covers = CoverArt::from_response(id, res.data);
+        let total = res.total;
+        let mut i = res.offset + res.limit;
+
+        let mut pb = match quiet {
+            false => Some(ProgressBar::new(total)),
+            true => None,
+        };
+
+        while i < total {
+            let res = self.requester.request("main", &format!("/cover?manga[]={}&offset={}", id, i))
+                .await?
+                .json::<CoverArtResponse>()
+                .await?;
+
+            let mut new_covers = CoverArt::from_response(id, res.data);
+            if let Some(pb) = &mut pb {
+                pb.add(new_covers.len() as u64);
+            }
+
+            covers.append(&mut new_covers);
+
+            i += res.limit;
+        }
+
+        if let Some(pb) = &mut pb {
+            pb.finish_print("Cover art metadata downloaded.");
+            println!("");
+        }
+
+        Ok(covers)
+    }
+
+    pub async fn download_cover_art(&mut self, cover_art:&[CoverArt], master_directory:&Path, quiet:bool) -> Result<(), APIError> {
+        let mut pb = match quiet {
+            false => Some(ProgressBar::new(cover_art.len() as u64)),
+            true => None,
+        };
+
+        let mut iter = cover_art.iter();
+        while let Some(ca) = iter.next() {
+            ca.download(&mut self.requester, master_directory).await?;
+
+            if let Some(pb) = &mut pb {
+                pb.inc();
+            }
+        }
+
+        if let Some(pb) = &mut pb {
+            pb.finish_print("Cover art downloaded.");
+            println!("");
         }
 
         Ok(())

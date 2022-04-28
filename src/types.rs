@@ -54,3 +54,24 @@ pub struct ChapterImageResponse {
     pub base_url: String,
     pub chapter: ChapterImageData,
 }
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CoverArtAttributes {
+    pub volume: String,
+    #[serde(rename="fileName")]
+    pub file_name: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CoverArtData {
+    // pub id: String,
+    pub attributes: CoverArtAttributes,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CoverArtResponse {
+    pub data: Vec<CoverArtData>,
+    pub limit: u64,
+    pub offset: u64,
+    pub total: u64,
+}

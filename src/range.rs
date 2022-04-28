@@ -87,4 +87,13 @@ impl Range {
 
         true
     }
+
+    pub fn in_volume_range(&self, volume:&str) -> bool {
+        let v = match volume.parse::<f64>() {
+            Ok(v) => v,
+            Err(_) => return false,
+        };
+
+        self.volume_start <= v && v <= self.volume_end
+    }
 }

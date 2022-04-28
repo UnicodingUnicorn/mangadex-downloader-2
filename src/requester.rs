@@ -55,9 +55,10 @@ impl RateLimitedRequester {
 
     pub fn new_with_defaults() -> Self {
         let mut requester = Self::new();
-        // These two sources have been confirmed not to throw errors.
+        // These three sources have been confirmed not to throw errors.
         let _ = requester.insert_source("main", "https://api.mangadex.org", Duration::from_millis(200)).unwrap();
         let _ = requester.insert_source("cdn", "https://api.mangadex.org", Duration::from_millis(1500)).unwrap();
+        let _ = requester.insert_source("content", "https://uploads.mangadex.org", Duration::from_millis(200)).unwrap();
 
         requester
     }

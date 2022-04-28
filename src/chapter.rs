@@ -40,7 +40,7 @@ pub enum ChapterError {
 }
 
 #[derive(Debug, Error)]
-pub enum ChapterDownloadError {
+pub enum ImageDownloadError {
     #[error("requester error: {0}")]
     Requester(#[from] RequesterError),
     #[error("decoding error: {0}")]
@@ -97,7 +97,7 @@ impl Chapter {
         }
     }
 
-    pub async fn download_to_folder(&self, requester:&mut RateLimitedRequester, master_directory:&Path, quiet:bool) -> Result<(), ChapterDownloadError> {
+    pub async fn download_to_folder(&self, requester:&mut RateLimitedRequester, master_directory:&Path, quiet:bool) -> Result<(), ImageDownloadError> {
         let _ = requester.insert_source(&self.base_url, &self.base_url, Duration::from_millis(100)); // Ignore conflicting aliases
         let master_path = master_directory.join(Path::new(&format!("{}/{}", self.get_volume(), self.get_chapter())));
         fs::create_dir_all(&master_path)?;
@@ -110,14 +110,14 @@ impl Chapter {
         for (i, url) in self.urls.iter().enumerate() {
             let res = requester.request(&self.base_url, &url).await?;
             let content_type = res.headers().get("Content-Type")
-                .ok_or(ChapterDownloadError::NoContentType)?
+                .ok_or(ImageDownloadError::NoContentType)?
                 .to_str()?;
 
             let extension = mime_guess::get_mime_extensions_str(content_type)
-                .ok_or(ChapterDownloadError::Mime)?
+                .ok_or(ImageDownloadError::Mime)?
                 .iter().map(|s| *s)
                 .next()
-                .ok_or(ChapterDownloadError::Mime)?;
+                .ok_or(ImageDownloadError::Mime)?;
 
             let body = res.bytes().await?;
 
