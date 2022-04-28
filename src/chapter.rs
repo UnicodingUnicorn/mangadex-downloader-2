@@ -1,5 +1,5 @@
 use crate::requester::{ RateLimitedRequester, RequesterError };
-use crate::types::{ ChapterData, ChapterDataResponse, ChapterImageResponse };
+use crate::types::{ ChapterData, ChapterImageResponse };
 
 use std::path::Path;
 use std::fs::{ self, File };
@@ -7,6 +7,28 @@ use std::io::Write;
 use std::time::Duration;
 
 use thiserror::Error;
+
+#[derive(Debug, Clone)]
+pub struct ChapterMetadata {
+    pub id:String,
+    pub volume: String,
+    pub chapter: String,
+    pub language: String,
+}
+impl ChapterMetadata {
+    pub fn from_chapter_data(raw:ChapterData) -> Self {
+        Self {
+            id: raw.id,
+            volume: raw.attributes.volume,
+            chapter: raw.attributes.chapter,
+            language: raw.attributes.language,
+        }
+    }
+
+    pub fn from_response(mut raw:Vec<ChapterData>) -> Vec<Self> {
+        raw.drain(..).map(|r| Self::from_chapter_data(r)).collect::<Vec<Self>>()
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum ChapterError {
@@ -32,64 +54,32 @@ pub enum ChapterDownloadError {
     IO(#[from] std::io::Error),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Chapter {
-    volume: String,
-    chapter: String,
-    language: String,
-    base_url: String,
-    urls: Vec<String>
+    pub id:String,
+    pub volume: String,
+    pub chapter: String,
+    pub base_url: String,
+    pub urls: Vec<String>,
 }
 impl Chapter {
-    pub async fn new(requester:&mut RateLimitedRequester, raw:&ChapterData) -> Result<Self, ChapterError> {
-        let res = requester.request("cdn", &format!("/at-home/server/{}", raw.id))
-            .await?;
-
-        let res = res.json::<ChapterImageResponse>()
+    pub async fn new(requester:&mut RateLimitedRequester, metadata:&ChapterMetadata) -> Result<Chapter, ChapterError> {
+        let res = requester.request("cdn", &format!("/at-home/server/{}", metadata.id))
+            .await?
+            .json::<ChapterImageResponse>()
             .await?;
 
         let urls = res.chapter.data.iter()
-            .map(|datum| format!("/data/{}/{}", res.chapter.hash, datum))
-            .collect::<Vec<String>>();
+           .map(|datum| format!("/data/{}/{}", res.chapter.hash, datum))
+           .collect::<Vec<String>>();
 
         Ok(Self {
-            volume: raw.attributes.volume.clone(),
-            chapter: raw.attributes.chapter.clone(),
-            language: raw.attributes.language.clone(),
+            id: metadata.id.clone(),
+            volume: metadata.volume.clone(),
+            chapter: metadata.chapter.clone(),
             base_url: res.base_url,
             urls,
         })
-    }
-
-    pub async fn get_page(requester:&mut RateLimitedRequester, id:&str, n:u64, language:&str) -> Result<(Vec<Self>, u64, bool), ChapterError> {
-        let res = requester.request("main", &format!("/manga/{}/feed?offset={}", id, n))
-            .await?
-            .json::<ChapterDataResponse>()
-            .await?;
-
-        let mut iter = res.data.iter().filter(|datum| datum.attributes.language == language);
-        let mut data = vec![];
-        while let Some(datum) = iter.next() {
-            let c = Self::new(requester, &datum).await?;
-            data.push(c);
-        }
-
-        Ok((data, res.limit, res.limit + res.offset < res.total))
-    }
-
-    pub async fn get_all(requester:&mut RateLimitedRequester, id:&str, language:&str) -> Result<Vec<Self>, ChapterError> {
-        let mut chapters = vec![];
-        let mut i = 0;
-        let mut c = true;
-        while c {
-            let (mut data, n, cont) = Self::get_page(requester, id, i, language).await?;
-            chapters.append(&mut data);
-
-            i += n;
-            c = cont;
-        }
-
-        Ok(chapters)
     }
 
     pub fn get_volume(&self) -> String {

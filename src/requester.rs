@@ -53,12 +53,13 @@ impl RateLimitedRequester {
         }
     }
 
-    pub fn new_with_defaults() -> Result<Self, RequesterError> {
+    pub fn new_with_defaults() -> Self {
         let mut requester = Self::new();
-        let _ = requester.insert_source("main", "https://api.mangadex.org", Duration::from_millis(200))?;
-        let _ = requester.insert_source("cdn", "https://api.mangadex.org", Duration::from_millis(1500))?;
+        // These two sources have been confirmed not to throw errors.
+        let _ = requester.insert_source("main", "https://api.mangadex.org", Duration::from_millis(200)).unwrap();
+        let _ = requester.insert_source("cdn", "https://api.mangadex.org", Duration::from_millis(1500)).unwrap();
 
-        Ok(requester)
+        requester
     }
 
     pub fn insert_source(&mut self, alias:&str, base_url:&str, timeout:Duration) -> Result<(), RequesterError> {
