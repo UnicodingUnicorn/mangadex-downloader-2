@@ -30,4 +30,34 @@ impl MangaMetadata {
             languages: raw.data.attributes.available_languages,
         }
     }
+
+    pub fn get_title(&self, preferred_language:&str) -> Option<String> {
+        match self.titles.get(preferred_language) {
+            Some(title) => Some(title.to_string()),
+            None => self.titles.iter().next().map(|(_, title)| title.to_string()),
+        }
+    }
+
+    pub fn print(&self) {
+        println!("ID: {}", self.id);
+
+        let titles = self.titles.iter()
+            .map(|(lang, title)| format!("\t- {} ({})", title, lang))
+            .intersperse("\n".to_string())
+            .collect::<String>();
+
+        println!("Titles:",);
+        println!("{}", titles);
+
+        let alt_titles = self.alt_titles.iter()
+            .map(|(lang, titles)| titles.iter().map(|title| format!("\t- {} ({})", title, lang.clone())))
+            .flatten()
+            .intersperse("\n".to_string())
+            .collect::<String>();
+
+        println!("Alternative Titles:");
+        println!("{}", alt_titles);
+
+        println!("Available Languages: {}", self.languages.join(", "));
+    }
 }

@@ -4,6 +4,8 @@ use crate::requester::{ RateLimitedRequester, RequesterError };
 use crate::types::{ ChapterDataResponse, MangaDataResponse };
 use crate::utils;
 
+use std::path::Path;
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -72,7 +74,7 @@ impl API {
         Ok(chapters)
     }
 
-    pub async fn download_chapters(&mut self, chapters:&[Chapter], master_directory:&str) -> Result<(), APIError> {
+    pub async fn download_chapters(&mut self, chapters:&[Chapter], master_directory:&Path) -> Result<(), APIError> {
         let mut iter = chapters.iter();
         while let Some(chapter) = iter.next() {
             chapter.download_to_folder(&mut self.requester, master_directory).await?;
