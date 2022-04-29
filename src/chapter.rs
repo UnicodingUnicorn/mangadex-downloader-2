@@ -108,6 +108,8 @@ impl Chapter {
             true => None,
         };
 
+        let digits = (self.urls.len() as f64).log10().floor() as usize + 1;
+
         for (i, url) in self.urls.iter().enumerate() {
             let res = requester.request(&self.base_url, &url).await?;
             let content_type = res.headers().get("Content-Type")
@@ -123,7 +125,7 @@ impl Chapter {
             let body = res.bytes().await?;
 
             // I'm too lazy to do async file io
-            let path = master_path.join(Path::new(&format!("{}.{}", i + 1, extension)));
+            let path = master_path.join(Path::new(&format!("{:0digits$}.{}", i + 1, extension, digits=digits)));
             let mut file = File::create(path)?;
             let _ = file.write_all(&body)?;
 
