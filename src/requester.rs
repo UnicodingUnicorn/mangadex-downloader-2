@@ -15,6 +15,8 @@ pub enum RequesterError {
     ConflictingAlias,
     #[error("reqwest error {0}")]
     Reqwest(#[from] reqwest::Error),
+    #[error("Error from the API: {0}")]
+    APIError(String),
 }
 
 fn get_host(url:&str) -> Option<String> {
@@ -91,6 +93,10 @@ impl RateLimitedRequester {
         }
 
         let res = req.send().await?;
+        if !res.status().is_success() {
+            let msg = res.text().await?;
+            return Err(RequesterError::APIError(msg));
+        }
 
         Ok(res)
     }
