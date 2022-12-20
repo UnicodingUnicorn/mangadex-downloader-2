@@ -105,8 +105,18 @@ impl API {
 
     pub async fn download_chapters(&mut self, chapters:&[Chapter], master_directory:&Path, quiet:bool) -> Result<(), APIError> {
         let mut iter = chapters.iter();
+
+        let mut pb:Option<ProgressBar<std::io::Stdout>> = None;
         while let Some(chapter) = iter.next() {
-            chapter.download_to_folder(&mut self.requester, master_directory, quiet).await?;
+            if let Some(pb) = &mut pb {
+                pb.finish();
+            }
+
+            pb = chapter.download_to_folder(&mut self.requester, master_directory, quiet).await?;
+        }
+
+        if let Some(pb) = &mut pb {
+            pb.finish_print("Chapters downloaded");
         }
 
         Ok(())

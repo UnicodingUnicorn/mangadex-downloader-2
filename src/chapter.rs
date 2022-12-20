@@ -120,7 +120,7 @@ impl Chapter {
         }
     }
 
-    pub async fn download_to_folder(&self, requester:&mut RateLimitedRequester, master_directory:&Path, quiet:bool) -> Result<(), ImageDownloadError> {
+    pub async fn download_to_folder(&self, requester:&mut RateLimitedRequester, master_directory:&Path, quiet:bool) -> Result<Option<ProgressBar<std::io::Stdout>>, ImageDownloadError> {
         let _ = requester.insert_source(&self.base_url, &self.base_url, Duration::from_millis(100)); // Ignore conflicting aliases
         let master_path = master_directory.join(Path::new(&self.assemble_folder_name()));
         fs::create_dir_all(&master_path)?;
@@ -156,10 +156,6 @@ impl Chapter {
             }
         }
 
-        if let Some(pb) = &mut pb {
-            pb.finish();
-        }
-
-        Ok(())
+        Ok(pb)
     }
 }
