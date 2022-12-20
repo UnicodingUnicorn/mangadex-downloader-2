@@ -36,18 +36,15 @@ impl API {
 
     pub async fn get_manga_metadata(&mut self, url:&str) -> Result<MangaMetadata, APIError> {
         let id = utils::get_id(url).ok_or(APIError::NoID)?;
-        let raw_manga_data = self.requester.request("main", &format!("/manga/{}", id))
-            .await?
-            .json::<MangaDataResponse>()
+        let raw_manga_data:MangaDataResponse = self.requester.request_json("main", &format!("/manga/{}", id))
             .await?;
 
         Ok(MangaMetadata::from_response(id, raw_manga_data))
     }
 
     pub async fn get_chapter_metadata(&mut self, manga_metadata:&MangaMetadata, quiet:bool) -> Result<Vec<ChapterMetadata>, APIError> {
-        let res = self.requester.request("main", &format!("/manga/{}/feed?offset={}", &manga_metadata.id, 0))
-            .await?
-            .json::<ChapterDataResponse>()
+        let res:ChapterDataResponse = self.requester
+            .request_json("main", &format!("/manga/{}/feed?offset={}", &manga_metadata.id, 0))
             .await?;
 
         let mut chapters = ChapterMetadata::from_response(res.data);
@@ -60,10 +57,9 @@ impl API {
         };
 
         while i < total {
-            let res = self.requester.request("main", &format!("/manga/{}/feed?offset={}", &manga_metadata.id, i))
-                .await?
-                .json::<ChapterDataResponse>()
-                .await?;
+        let res:ChapterDataResponse = self.requester
+            .request_json("main", &format!("/manga/{}/feed?offset={}", &manga_metadata.id, i))
+            .await?;
 
             let mut new_chapters = ChapterMetadata::from_response(res.data);
             if let Some(pb) = &mut pb {
@@ -132,9 +128,7 @@ impl API {
         };
 
         while i < total {
-            let res = self.requester.request("main", &format!("/cover?manga[]={}&offset={}", id, i))
-                .await?
-                .json::<CoverArtResponse>()
+            let res:CoverArtResponse = self.requester.request_json("main", &format!("/cover?manga[]={}&offset={}", id, i))
                 .await?;
 
             let mut new_covers = CoverArt::from_response(id, res.data);

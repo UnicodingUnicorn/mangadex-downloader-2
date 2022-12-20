@@ -19,10 +19,20 @@ pub struct ChapterMetadata {
 }
 impl ChapterMetadata {
     pub fn from_chapter_data(raw:ChapterData) -> Self {
+        let volume = match &raw.attributes.volume {
+            Some(volume) => volume.clone(),
+            None => String::new(),
+        };
+
+        let chapter = match &raw.attributes.chapter {
+            Some(chapter) => chapter.clone(),
+            None => String::new(),
+        };
+
         Self {
             id: raw.id,
-            volume: raw.attributes.volume,
-            chapter: raw.attributes.chapter,
+            volume,
+            chapter,
             language: raw.attributes.language,
         }
     }
@@ -98,9 +108,21 @@ impl Chapter {
         }
     }
 
+    fn assemble_folder_name(&self) -> String {
+        let v = self.get_volume();
+        let c = self.get_chapter();
+
+        match (v.is_empty(), c.is_empty()) {
+            (false, false) => format!("{}/{}", utils::escape_path(&v), utils::escape_path(&c)),
+            (true, false) => utils::escape_path(&c),
+            (false, true) => utils::escape_path(&v),
+            (true, true) => String::from("Oneshot"),
+        }
+    }
+
     pub async fn download_to_folder(&self, requester:&mut RateLimitedRequester, master_directory:&Path, quiet:bool) -> Result<(), ImageDownloadError> {
         let _ = requester.insert_source(&self.base_url, &self.base_url, Duration::from_millis(100)); // Ignore conflicting aliases
-        let master_path = master_directory.join(Path::new(&format!("{}/{}", utils::escape_path(&self.get_volume()), utils::escape_path(&self.get_chapter()))));
+        let master_path = master_directory.join(Path::new(&self.assemble_folder_name()));
         fs::create_dir_all(&master_path)?;
 
         let mut pb = match quiet {

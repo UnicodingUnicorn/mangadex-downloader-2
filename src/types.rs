@@ -22,8 +22,8 @@ pub struct MangaDataResponse {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ChapterAttributes {
-    pub volume: String,
-    pub chapter: String,
+    pub volume: Option<String>,
+    pub chapter: Option<String>,
     #[serde(rename="translatedLanguage")]
     pub language: String,
 }

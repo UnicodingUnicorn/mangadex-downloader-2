@@ -3,6 +3,7 @@ use crate::ratelimits::{ RateLimiter, RateLimiterFunctions, ThreadedRateLimiter 
 use thiserror::Error;
 use regex::Regex;
 use reqwest::{ self, Client, Response };
+use serde::de::DeserializeOwned;
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -17,6 +18,8 @@ pub enum RequesterError {
     Reqwest(#[from] reqwest::Error),
     #[error("Error from the API: {0}")]
     APIError(String),
+    #[error("API returned unexpected response: {0}")]
+    UnexpectedResponse(String),
 }
 
 fn get_host(url:&str) -> Option<String> {
@@ -99,5 +102,11 @@ impl RateLimitedRequester {
         }
 
         Ok(res)
+    }
+
+    pub async fn request_json<T:DeserializeOwned>(&mut self, alias:&str, path:&str) -> Result<T, RequesterError> {
+        let body = self.request(alias, path).await?.text().await?;
+        serde_json::from_str(&body)
+            .map_err(|_| RequesterError::UnexpectedResponse(body))
     }
 }
