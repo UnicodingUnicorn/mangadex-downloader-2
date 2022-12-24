@@ -1,3 +1,4 @@
+use crate::image::Image;
 use crate::requester::{ RateLimitedRequester, RequesterError };
 use crate::types::{ ChapterData, ChapterImageResponse };
 use crate::utils;
@@ -48,6 +49,8 @@ pub enum ChapterError {
     Decode(#[from] reqwest::Error),
     #[error("requester error: {0}")]
     Requester(#[from] RequesterError),
+    #[error("image hash could not be found in its filename")]
+    HashNotFound,
 }
 
 #[derive(Debug, Error)]
@@ -64,6 +67,8 @@ pub enum ImageDownloadError {
     Mime,
     #[error("error saving image: {0}")]
     IO(#[from] std::io::Error),
+    #[error("downloaded image has different hash to supplied one")]
+    HashMismatch,
 }
 
 #[derive(Debug, Clone)]
@@ -72,7 +77,7 @@ pub struct Chapter {
     pub volume: String,
     pub chapter: String,
     pub base_url: String,
-    pub urls: Vec<String>,
+    pub urls: Vec<Image>,
 }
 impl Chapter {
     pub async fn new(requester:&mut RateLimitedRequester, metadata:&ChapterMetadata) -> Result<Chapter, ChapterError> {
@@ -82,8 +87,8 @@ impl Chapter {
             .await?;
 
         let urls = res.chapter.data.iter()
-           .map(|datum| format!("/data/{}/{}", res.chapter.hash, datum))
-           .collect::<Vec<String>>();
+            .map(|filename| Image::new(&res.chapter.hash, filename))
+            .collect::<Result<Vec<Image>, ChapterError>>()?;
 
         Ok(Self {
             id: metadata.id.clone(),
@@ -132,8 +137,10 @@ impl Chapter {
 
         let digits = (self.urls.len() as f64).log10().floor() as usize + 1;
 
-        for (i, url) in self.urls.iter().enumerate() {
-            let res = requester.request(&self.base_url, &url).await?;
+        for (i, image) in self.urls.iter().enumerate() {
+            let res = requester.request(&self.base_url, image.url()).await?;
+
+            // Derive extension from response Content-Type
             let content_type = res.headers().get("Content-Type")
                 .ok_or(ImageDownloadError::NoContentType)?
                 .to_str()?;
@@ -144,7 +151,13 @@ impl Chapter {
                 .next()
                 .ok_or(ImageDownloadError::Mime)?;
 
+            // Get the body
             let body = res.bytes().await?;
+            
+            // Verify the body. TODO: make this optional.
+            if image.verify(&body) == false {
+                return Err(ImageDownloadError::HashMismatch);
+            }
 
             // I'm too lazy to do async file io
             let path = master_path.join(Path::new(&format!("{:0digits$}.{}", i + 1, extension, digits=digits)));

@@ -5,6 +5,7 @@ extern crate lazy_static;
 mod api;
 mod chapter;
 mod coverart;
+mod image;
 mod manga;
 mod range;
 mod ratelimits;
