@@ -7,7 +7,7 @@ pub struct MangaDataAttributes {
     #[serde(rename="altTitles")]
     pub alt_titles: Vec<HashMap<String, String>>,
     #[serde(rename="availableTranslatedLanguages")]
-    pub available_languages: Vec<String>,
+    pub available_languages: Vec<Option<String>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

@@ -23,11 +23,16 @@ impl MangaMetadata {
                 acc
             });
 
+        let languages = raw.data.attributes.available_languages.iter()
+            .filter(|al| al.is_some())
+            .map(|al| al.as_ref().unwrap().to_string()) // Guaranteed Some
+            .collect::<Vec<String>>();
+
         Self {
             id,
             titles: raw.data.attributes.title,
             alt_titles,
-            languages: raw.data.attributes.available_languages,
+            languages,
         }
     }
 
