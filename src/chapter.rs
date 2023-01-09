@@ -19,7 +19,7 @@ pub struct ChapterMetadata {
     pub language: String,
 }
 impl ChapterMetadata {
-    pub fn from_chapter_data(raw:ChapterData) -> Self {
+    pub fn from_chapter_data(raw:ChapterData) -> Option<Self> {
         let volume = match &raw.attributes.volume {
             Some(volume) => volume.clone(),
             None => String::new(),
@@ -30,16 +30,18 @@ impl ChapterMetadata {
             None => String::new(),
         };
 
-        Self {
+        Some(Self {
             id: raw.id,
             volume,
             chapter,
-            language: raw.attributes.language,
-        }
+            language: raw.attributes.language?,
+        })
     }
 
     pub fn from_response(mut raw:Vec<ChapterData>) -> Vec<Self> {
-        raw.drain(..).map(|r| Self::from_chapter_data(r)).collect::<Vec<Self>>()
+        raw.drain(..)
+            .filter_map(|r| Self::from_chapter_data(r))
+            .collect::<Vec<Self>>()
     }
 }
 
@@ -153,7 +155,7 @@ impl Chapter {
 
             // Get the body
             let body = res.bytes().await?;
-            
+
             // Verify the body. TODO: make this optional.
             if image.verify(&body) == false {
                 return Err(ImageDownloadError::HashMismatch);

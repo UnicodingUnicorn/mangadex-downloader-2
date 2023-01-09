@@ -25,7 +25,7 @@ pub struct ChapterAttributes {
     pub volume: Option<String>,
     pub chapter: Option<String>,
     #[serde(rename="translatedLanguage")]
-    pub language: String,
+    pub language: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
