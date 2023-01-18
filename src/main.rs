@@ -7,6 +7,7 @@ mod chapter;
 mod coverart;
 mod image;
 mod manga;
+mod metadata;
 mod range;
 mod ratelimits;
 mod requester;
@@ -16,14 +17,29 @@ mod utils;
 use api::{ API, APIError };
 use chapter::ChapterMetadata;
 use coverart::CoverArt;
+use metadata::{ Metadata, MetadataError };
 use range::{ Range, RangeError };
 
 use std::path::Path;
 
-use clap::Parser;
+use clap::{ Parser, ValueEnum };
 use log::{ info, error };
 use simplelog::{ self, TermLogger, LevelFilter, TerminalMode, ColorChoice };
 use thiserror::Error;
+
+#[derive(Debug, Copy, Clone, ValueEnum)]
+pub enum MetadataOutputFormat {
+    TOML,
+    JSON,
+}
+impl MetadataOutputFormat {
+    pub fn file_format(&self) -> &'static str {
+        match self {
+            MetadataOutputFormat::TOML => "toml",
+            MetadataOutputFormat::JSON => "json",
+        }
+    }
+}
 
 #[derive(Debug, Parser)]
 #[clap(author, version, about)]
@@ -45,6 +61,15 @@ pub struct Arguments {
     #[clap(short, long)]
     /// Suppress all terminal output
     quiet: bool,
+    #[clap(long, default_values=&["ja-ro", "ja", "en"])]
+    /// Title languages to download into metadata file, in ISO-639 form. Set to 'all' to download all titles.
+    metadata_title_languages: Vec<String>,
+    #[clap(long, value_enum, default_value_t=MetadataOutputFormat::TOML)]
+    /// Metadata output file format.
+    metadata_file_format: MetadataOutputFormat,
+    #[clap(long)]
+    /// Don't save metadata
+    no_metadata: bool,
 }
 
 #[tokio::main]
@@ -81,6 +106,8 @@ enum ProgramError {
     LanguageNotAvailable,
     #[error("no title is available")]
     TitleNotAvailable,
+    #[error("{0}")]
+    Metadata(#[from] MetadataError),
 }
 
 async fn run(args:Arguments) -> Result<(), ProgramError> {
@@ -127,6 +154,12 @@ async fn run(args:Arguments) -> Result<(), ProgramError> {
         .map(|cam| cam.clone())
         .collect::<Vec<CoverArt>>();
     api.download_cover_art(&download_cover_arts, &master_directory, args.quiet).await?;
+
+    if !args.no_metadata {
+        info!("Saving metadata...");
+        let metadata = Metadata::new(&manga_metadata, &args.language, &args.metadata_title_languages);
+        metadata.save(&master_directory, args.metadata_file_format)?;
+    }
 
     Ok(())
 }

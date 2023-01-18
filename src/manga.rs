@@ -7,6 +7,8 @@ pub struct MangaMetadata {
     pub titles: HashMap<String, String>,
     pub alt_titles: HashMap<String, Vec<String>>,
     pub languages: Vec<String>,
+    pub descriptions: HashMap<String, String>,
+    pub tags: Vec<HashMap<String, String>>,
 }
 impl MangaMetadata {
     pub fn from_response(id:String, raw:MangaDataResponse) -> Self {
@@ -28,11 +30,17 @@ impl MangaMetadata {
             .map(|al| al.as_ref().unwrap().to_string()) // Guaranteed Some
             .collect::<Vec<String>>();
 
+        let tags = raw.data.attributes.tags.iter()
+            .map(|t| t.attributes.name.clone())
+            .collect::<Vec<HashMap<String, String>>>();
+
         Self {
             id,
             titles: raw.data.attributes.title,
             alt_titles,
             languages,
+            descriptions: raw.data.attributes.description,
+            tags,
         }
     }
 
@@ -40,6 +48,13 @@ impl MangaMetadata {
         match self.titles.get(preferred_language) {
             Some(title) => Some(title.to_string()),
             None => self.titles.iter().next().map(|(_, title)| title.to_string()),
+        }
+    }
+
+    pub fn get_description(&self, preferred_language:&str) -> Option<String> {
+        match self.descriptions.get(preferred_language) {
+            Some(description) => Some(description.to_string()),
+            None => self.descriptions.iter().next().map(|(_, description)| description.to_string()),
         }
     }
 
@@ -63,6 +78,22 @@ impl MangaMetadata {
         println!("Alternative Titles:");
         println!("{}", alt_titles);
 
+        let tags = self.tags.iter()
+            .map(|t| t.iter().map(|(_, v)| v))
+            .flatten()
+            .map(|t| t.to_string())
+            .intersperse(", ".to_string())
+            .collect::<String>();
+
+        println!("Tags: {}", tags);
+
         println!("Available Languages: {}", self.languages.join(", "));
+
+        println!("-");
+        println!("Descriptions:");
+        for (language, description) in self.descriptions.iter() {
+            println!("({}) {}", language, description);
+            println!("");
+        }
     }
 }

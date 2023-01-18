@@ -2,12 +2,24 @@ use serde::{ Deserialize, Serialize };
 use std::collections::HashMap;
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct TagDataAttributes {
+    pub name: HashMap<String, String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TagData {
+    pub attributes: TagDataAttributes,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct MangaDataAttributes {
     pub title: HashMap<String, String>,
     #[serde(rename="altTitles")]
     pub alt_titles: Vec<HashMap<String, String>>,
     #[serde(rename="availableTranslatedLanguages")]
     pub available_languages: Vec<Option<String>>,
+    pub description: HashMap<String, String>,
+    pub tags: Vec<TagData>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
