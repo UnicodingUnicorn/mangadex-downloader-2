@@ -1,8 +1,10 @@
 use crate::image::Image;
+use crate::range::Range;
 use crate::requester::{ RateLimitedRequester, RequesterError };
 use crate::types::{ ChapterData, ChapterImageResponse };
 use crate::utils;
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::fs::{ self, File };
 use std::io::Write;
@@ -17,6 +19,7 @@ pub struct ChapterMetadata {
     pub volume: String,
     pub chapter: String,
     pub language: String,
+    pub group: String,
 }
 impl ChapterMetadata {
     pub fn from_chapter_data(raw:ChapterData) -> Option<Self> {
@@ -30,18 +33,96 @@ impl ChapterMetadata {
             None => String::new(),
         };
 
+        let group = raw.relationships.iter()
+            .filter(|r| r.id == "scanlation_group")
+            .filter_map(|r| Some(r.attributes.as_ref()?.name.as_ref()?.clone()))
+            .next().unwrap_or(String::new());
+
         Some(Self {
             id: raw.id,
             volume,
             chapter,
             language: raw.attributes.language?,
+            group,
         })
     }
+}
 
-    pub fn from_response(mut raw:Vec<ChapterData>) -> Vec<Self> {
-        raw.drain(..)
-            .filter_map(|r| Self::from_chapter_data(r))
-            .collect::<Vec<Self>>()
+#[derive(Debug, Clone)]
+pub struct ChapterMetadataSeries {
+    max_tl: String,
+    max_tl_count: u64,
+    tl_group_counts: HashMap<String, u64>,
+    chapters: Vec<ChapterMetadata>,
+}
+impl ChapterMetadataSeries {
+    pub fn new(raw:Vec<ChapterData>) -> Self {
+        let mut cms = Self {
+            max_tl: String::new(),
+            max_tl_count: 0,
+            tl_group_counts: HashMap::new(),
+            chapters: Vec::new(),
+        };
+
+        cms.add_metadata(raw);
+
+        cms
+    }
+
+    pub fn add_metadata(&mut self, mut raw:Vec<ChapterData>) {
+        // Convert new chapters
+        let mut chapters = raw.drain(..)
+            .filter_map(|r| ChapterMetadata::from_chapter_data(r))
+            .collect::<Vec<ChapterMetadata>>();
+
+        // Recalculate TL-groups
+        // TODO: Less clones
+        for chapter in chapters.iter() {
+            let n = match self.tl_group_counts.get(&chapter.group) {
+                Some(n) => *n,
+                None => 0,
+            };
+
+            self.tl_group_counts.insert(chapter.group.clone(), n + 1);
+
+            if n + 1 > self.max_tl_count {
+                self.max_tl = chapter.group.clone();
+                self.max_tl_count = n + 1;
+            }
+        }
+
+        // Append new chapters
+        self.chapters.append(&mut chapters);
+    }
+
+    pub fn get_download_metadata(&self, language:&str, preferred_tl:&Option<String>, ranges:&Option<Vec<Range>>) -> Vec<&ChapterMetadata> {
+        // Initially filter for language and range
+        let chapters:HashMap<(&String, &String), Vec<&ChapterMetadata>> = self.chapters.iter()
+            .filter(|m| m.language == language)
+            .filter(|m| ranges.as_ref().map(|r| r.iter().any(|range| range.in_range(&m.volume, &m.chapter))).unwrap_or(true))
+            .fold(HashMap::new(), |mut acc, m| {
+                if let Some(ms) = acc.get_mut(&(&m.volume, &m.chapter)) {
+                    ms.push(&m);
+                } else {
+                    acc.insert((&m.volume, &m.chapter), vec![&m]);
+                }
+
+                acc
+            });
+
+        // Filter for TL group
+        chapters.iter()
+            .map(|(_, ms)| match ms.len() { 
+                1 => ms[0],
+                _ => ms.iter() // Guaranteed != 0
+                        .filter(|m| match preferred_tl {
+                            Some(tl) => &m.group == tl,
+                            None => m.group == self.max_tl,
+                        })
+                        .next()
+                        .unwrap_or(&ms[0]),
+            })
+            .collect::<Vec<&ChapterMetadata>>()
     }
 }
 

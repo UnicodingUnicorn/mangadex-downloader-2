@@ -15,7 +15,6 @@ mod types;
 mod utils;
 
 use api::{ API, APIError };
-use chapter::ChapterMetadata;
 use coverart::CoverArt;
 use metadata::{ Metadata, MetadataError };
 use range::{ Range, RangeError };
@@ -70,6 +69,9 @@ pub struct Arguments {
     #[clap(long)]
     /// Don't save metadata
     no_metadata: bool,
+    #[clap(long)]
+    /// Name of the preferred translation group. If not supplied, TL-group will be selected based on frequency.
+    preferred_tl: Option<String>,
 }
 
 #[tokio::main]
@@ -137,11 +139,7 @@ async fn run(args:Arguments) -> Result<(), ProgramError> {
     let cover_art_metadata = api.get_cover_art(&manga_metadata.id, args.quiet).await?;
 
     info!("Retrieving chapter images download data...");
-    let download_chapter_metadata = chapter_metadata.iter()
-        .filter(|m| m.language == args.language)
-        .filter(|m| ranges.as_ref().map(|r| r.iter().any(|range| range.in_range(&m.volume, &m.chapter))).unwrap_or(true))
-        .map(|m| m.clone())
-        .collect::<Vec<ChapterMetadata>>();
+    let download_chapter_metadata = chapter_metadata.get_download_metadata(&args.language, &args.preferred_tl, &ranges);
     let chapters = api.get_chapters(&download_chapter_metadata, args.quiet).await?;
 
     info!("Downloading chapters...");

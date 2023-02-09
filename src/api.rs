@@ -1,4 +1,4 @@
-use crate::chapter::{ Chapter, ChapterError, ImageDownloadError, ChapterMetadata };
+use crate::chapter::{ Chapter, ChapterError, ImageDownloadError, ChapterMetadata, ChapterMetadataSeries };
 use crate::coverart::CoverArt;
 use crate::manga::MangaMetadata;
 use crate::requester::{ RateLimitedRequester, RequesterError };
@@ -42,12 +42,12 @@ impl API {
         Ok(MangaMetadata::from_response(id, raw_manga_data))
     }
 
-    pub async fn get_chapter_metadata(&mut self, manga_metadata:&MangaMetadata, quiet:bool) -> Result<Vec<ChapterMetadata>, APIError> {
+    pub async fn get_chapter_metadata(&mut self, manga_metadata:&MangaMetadata, quiet:bool) -> Result<ChapterMetadataSeries, APIError> {
         let res:ChapterDataResponse = self.requester
-            .request_json("main", &format!("/manga/{}/feed?offset={}", &manga_metadata.id, 0))
+            .request_json("main", &format!("/manga/{}/feed?offset={}&includes[]=scanlation_group", &manga_metadata.id, 0))
             .await?;
 
-        let mut chapters = ChapterMetadata::from_response(res.data);
+        let mut chapters = ChapterMetadataSeries::new(res.data);
         let total = res.total;
         let mut i = res.offset + res.limit;
 
@@ -57,16 +57,15 @@ impl API {
         };
 
         while i < total {
-        let res:ChapterDataResponse = self.requester
-            .request_json("main", &format!("/manga/{}/feed?offset={}", &manga_metadata.id, i))
-            .await?;
+            let res:ChapterDataResponse = self.requester
+                .request_json("main", &format!("/manga/{}/feed?offset={}&includes[]=scanlation_group", &manga_metadata.id, i))
+                .await?;
 
-            let mut new_chapters = ChapterMetadata::from_response(res.data);
             if let Some(pb) = &mut pb {
-                pb.add(new_chapters.len() as u64);
+                pb.add(res.data.len() as u64);
             }
-            chapters.append(&mut new_chapters);
 
+            chapters.add_metadata(res.data);
             i += res.limit;
         }
 
@@ -78,7 +77,7 @@ impl API {
         Ok(chapters)
     }
 
-    pub async fn get_chapters(&mut self, chapter_metadata:&[ChapterMetadata], quiet:bool) -> Result<Vec<Chapter>, APIError> {
+    pub async fn get_chapters(&mut self, chapter_metadata:&[&ChapterMetadata], quiet:bool) -> Result<Vec<Chapter>, APIError> {
         let mut pb = match quiet {
             false => Some(ProgressBar::new(chapter_metadata.len() as u64)),
             true => None,
@@ -117,6 +116,7 @@ impl API {
 
         if let Some(pb) = &mut pb {
             pb.finish_print("Chapters downloaded");
+            println!("");
         }
 
         Ok(())

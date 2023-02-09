@@ -32,6 +32,19 @@ pub struct MangaDataResponse {
     pub data: MangaData,
 }
 
+// We only care about 'scanlation_group' attributes
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RawChapterRelationshipAttributes {
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RawChapterRelationship {
+    #[serde(rename="type")]
+    pub id: String,
+    pub attributes: Option<RawChapterRelationshipAttributes>,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ChapterAttributes {
     pub volume: Option<String>,
@@ -44,6 +57,7 @@ pub struct ChapterAttributes {
 pub struct ChapterData {
     pub id: String,
     pub attributes: ChapterAttributes,
+    pub relationships: Vec<RawChapterRelationship>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
