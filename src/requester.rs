@@ -1,12 +1,18 @@
 use crate::ratelimits::{ RateLimiter, RateLimiterFunctions, ThreadedRateLimiter };
 
+use async_recursion::async_recursion;
+use chrono::{ TimeDelta, Utc };
 use thiserror::Error;
 use regex::Regex;
-use reqwest::{ self, Client, Response };
+use reqwest::{ self, Client, Response, StatusCode };
 use serde::de::DeserializeOwned;
 
+use std::cmp;
 use std::collections::HashMap;
+use std::thread;
 use std::time::Duration;
+
+use crate::utils;
 
 #[derive(Debug, Error)]
 pub enum RequesterError {
@@ -18,6 +24,8 @@ pub enum RequesterError {
     Reqwest(#[from] reqwest::Error),
     #[error("Error from the API: {0}")]
     APIError(String),
+    #[error("Exceeded API rate limit")]
+    RateLimited,
     #[error("API returned unexpected response: {0}")]
     UnexpectedResponse(String),
 }
@@ -78,6 +86,7 @@ impl RateLimitedRequester {
         Ok(())
     }
 
+    #[async_recursion]
     pub async fn request(&mut self, alias:&str, path:&str) -> Result<Response, RequesterError> {
         let mut source = self.sources.get_mut(alias);
         if let Some(ref mut s) = source {
@@ -97,8 +106,16 @@ impl RateLimitedRequester {
 
         let res = req.send().await?;
         if !res.status().is_success() {
+            // Check is we're being rate-limited
+            if res.status() == StatusCode::TOO_MANY_REQUESTS {
+                let retry = utils::get_retry_after(&res).ok_or(RequesterError::RateLimited)?;
+                let delay = cmp::max(TimeDelta::new(0, 0).unwrap(), retry - Utc::now()).to_std().map_err(|_| RequesterError::RateLimited)?;
+                thread::sleep(delay);
+                return self.request(alias, path).await;
+            } else {
             let msg = res.text().await?;
-            return Err(RequesterError::APIError(msg));
+                return Err(RequesterError::APIError(msg));
+            }
         }
 
         Ok(res)
